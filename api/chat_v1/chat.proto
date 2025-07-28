@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package auth_v1;
+
+import "google/protobuf/empty.proto";
+
+
+option go_package = "github.com/UraharaKiska/go-chat-server/pkg/chat_v1;chat_v1";
+
+service ChatV1{
+  rpc Create(CreateRequest) returns(CreateResponse);
+  rpc Delete(DeleteRequest) returns(google.protobuf.Empty);
+  rpc SendMessage(SendMessageRequest) returns(google.protobuf.Empty);
+}
+
+message Message {
+  int64 id = 1;
+  MessageInfo messageInfo = 2;
+}
+
+message MessageInfo {
+  string from = 1;
+  string text = 2;
+  string datetime = 3;
+}
+
+message ChatInfo {
+  string name = 1;
+}
+
+message CreateRequest {
+  ChatInfo chatInfo = 1;
+  repeated string usernames = 2;
+}
+
+message CreateResponse {
+  int64 id = 1;
+}
+
+message DeleteRequest {
+  int64 id = 1;
+}
+
+message SendMessageRequest {
+  MessageInfo message = 1;
+}
+
+
+
+
+
