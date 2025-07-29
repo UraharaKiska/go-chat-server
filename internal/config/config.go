@@ -22,6 +22,14 @@ type PGConfig interface {
 	DSN() string
 }
 
+type HTTPConfig interface {
+	Address() string
+}
+
+type SWAGGERConfig interface {
+	Address() string
+}
+
 func ParseConfig() string {
 	var configPath string
 	flag.StringVar(&configPath, "config-path", ".env", "path to config file")
