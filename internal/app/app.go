@@ -18,6 +18,9 @@ import (
 	"google.golang.org/grpc/reflection"
 	"github.com/rakyll/statik/fs"
 	_ "github.com/UraharaKiska/go-chat-server/statik"
+	"github.com/grpc-ecosystem/go-grpc-middleware"
+	"google.golang.org/grpc/credentials"
+	// "crypto/tls"
 )
 
 type App struct {
@@ -62,7 +65,7 @@ func (a *App) Run() error {
 
 		err := a.runHTTPServer()
 		if err != nil {
-			log.Fatalf("failed to run GRPC server: %v", err)
+			log.Fatalf("failed to run HTTP server: %v", err)
 		}
 	}()
 
@@ -112,22 +115,35 @@ func (a *App) initServiceProvider(_ context.Context) error {
 }
 
 func (a *App) initGRPCServer(ctx context.Context) error {
+	creds, err := credentials.NewServerTLSFromFile(
+		a.serviceProvider.TlsConfig().ServicePemFilePath(),
+		a.serviceProvider.TlsConfig().ServiceKeyFilePath())
+	if err != nil {
+		log.Fatalf("failed to load TLS keys: %v", err)
+	}
+	checkPermissionInterceptor := interceptor.NewCheckPermissionInterceptor(a.serviceProvider)
 	a.grpcServer = grpc.NewServer(
-		grpc.Creds(insecure.NewCredentials()),
-		grpc.UnaryInterceptor(interceptor.ValidateInterceptor),
+		grpc.Creds(creds),
+		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+			interceptor.ValidateInterceptor,
+			checkPermissionInterceptor,
+			)),
 	)
 
 	reflection.Register(a.grpcServer)
 
-	desc.RegisterChatV1Server(a.grpcServer, a.serviceProvider.AuthImpl(ctx))
+	desc.RegisterChatV1Server(a.grpcServer, a.serviceProvider.ChatImpl(ctx))
 
 	return nil
 }
 
 
 func (a *App) initHTTPServer(ctx context.Context) error {
-mux := runtime.NewServeMux()
+	mux := runtime.NewServeMux()
 
+	// opts := []grpc.DialOption{
+    //     grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
+    // }
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
@@ -142,10 +158,20 @@ mux := runtime.NewServeMux()
 		AllowedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "Authorization"},
 		AllowCredentials: true,
 	})
-
+	// cert, err := tls.LoadX509KeyPair(
+    //     a.serviceProvider.TlsConfig().ServicePemFilePath(),
+    //     a.serviceProvider.TlsConfig().ServiceKeyFilePath(),
+    // )
+	// if err != nil {
+	// 	log.Fatalf("failed to load TLS keys: %v", err)
+	// }
+	// tlsConfig := &tls.Config{
+    //     Certificates: []tls.Certificate{cert},
+    // }
 	a.httpServer = &http.Server{
 		Addr: a.serviceProvider.HTTPConfig().Address(),
 		Handler: corsMiddleware.Handler(mux),
+		// TLSConfig: tlsConfig,
 	}
 	return nil
 }

@@ -3,20 +3,24 @@ package app
 import (
 	"context"
 	"log"
+
 	"github.com/UraharaKiska/go-chat-server/internal/api/chat"
-	"github.com/UraharaKiska/platform-common/pkg/db"
-	"github.com/UraharaKiska/platform-common/pkg/db/pg"
-	"github.com/UraharaKiska/platform-common/pkg/db/transaction"
-	"github.com/UraharaKiska/platform-common/pkg/closer"
 	"github.com/UraharaKiska/go-chat-server/internal/config"
 	env "github.com/UraharaKiska/go-chat-server/internal/config/env"
 	"github.com/UraharaKiska/go-chat-server/internal/repository"
 	chatRepository "github.com/UraharaKiska/go-chat-server/internal/repository/chat"
 	chatMessageRepository "github.com/UraharaKiska/go-chat-server/internal/repository/chatMessage"
 	chatUserRepository "github.com/UraharaKiska/go-chat-server/internal/repository/chatUser"
+	"github.com/UraharaKiska/platform-common/pkg/closer"
+	"github.com/UraharaKiska/platform-common/pkg/db"
+	"github.com/UraharaKiska/platform-common/pkg/db/pg"
+	"github.com/UraharaKiska/platform-common/pkg/db/transaction"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/UraharaKiska/go-chat-server/internal/service"
 	chatService "github.com/UraharaKiska/go-chat-server/internal/service/chat"
+	descAccess "github.com/UraharaKiska/go-chat-server/pkg/access_v1"
 )
 
 type serviceProvider struct {
@@ -24,6 +28,7 @@ type serviceProvider struct {
 	grpcConfig config.GRPCConfig
 	httpConfig config.HTTPConfig
 	swaggerConfig config.SWAGGERConfig
+	tlsConfig config.TlsConfig
 
 	dbClient       db.Client
 	txManager		  	db.TxManager
@@ -35,6 +40,7 @@ type serviceProvider struct {
 	chatService service.ChatService
 
 	authImpl *auth.Implementation
+	accessClient descAccess.AccessV1Client
 }
 
 func newServiceProvider() *serviceProvider {
@@ -83,6 +89,17 @@ func (s *serviceProvider) SwaggerConfig() config.GRPCConfig {
 		s.swaggerConfig = cfg
 	}
 	return s.swaggerConfig
+}
+
+func (s *serviceProvider) TlsConfig() config.TlsConfig {
+	if s.tlsConfig == nil {
+		cfg, err := env.NewTLSConfig()
+		if err != nil {
+			log.Fatalf("failed to init app%v:", err.Error())
+		}
+		s.tlsConfig = cfg
+	}
+	return s.tlsConfig
 }
 
 func (s *serviceProvider) DBClient(ctx context.Context) db.Client {
@@ -146,9 +163,28 @@ func (s *serviceProvider) ChatService(ctx context.Context) service.ChatService {
 	return s.chatService
 }
 
-func (s *serviceProvider) AuthImpl(ctx context.Context) *auth.Implementation {
+func (s *serviceProvider) AccessClient(ctx context.Context) descAccess.AccessV1Client {
+	if s.accessClient == nil {
+		conn, err := grpc.NewClient(
+			"localhost:50051", 
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+		if err != nil {
+			log.Fatalf("Failed to connect: %v", err)
+		}
+		s.accessClient = descAccess.NewAccessV1Client(conn)
+	}
+	return s.accessClient
+}
+
+
+
+func (s *serviceProvider) ChatImpl(ctx context.Context) *auth.Implementation {
 	if s.authImpl == nil {
-		s.authImpl = auth.NewImplementation(s.ChatService(ctx))
+		s.authImpl = auth.NewImplementation(
+			s.ChatService(ctx),
+			s.AccessClient(ctx),
+		)
 	}
 
 	return s.authImpl

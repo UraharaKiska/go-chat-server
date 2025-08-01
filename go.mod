@@ -8,6 +8,7 @@ require (
 	github.com/brianvoe/gofakeit/v6 v6.28.0
 	github.com/envoyproxy/protoc-gen-validate v1.2.1
 	github.com/gojuno/minimock/v3 v3.4.5
+	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.1
 	github.com/joho/godotenv v1.5.1
 	github.com/pkg/errors v0.9.1

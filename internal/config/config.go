@@ -30,6 +30,11 @@ type SWAGGERConfig interface {
 	Address() string
 }
 
+type TlsConfig interface {
+	ServiceKeyFilePath() string
+	ServicePemFilePath() string
+}
+
 func ParseConfig() string {
 	var configPath string
 	flag.StringVar(&configPath, "config-path", ".env", "path to config file")
